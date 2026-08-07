@@ -1,0 +1,7 @@
+# Final system update
+sudo apt update && sudo apt upgrade -y
+
+
+echo "=============================="
+echo " Installation Completed ✅"
+echo "=============================="
