@@ -27,13 +27,6 @@ EOF
 
 sudo systemctl daemon-reexec
 sudo systemctl enable --now alertmanager
-  --storage.path=/var/lib/alertmanager
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now alertmanager
