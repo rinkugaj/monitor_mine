@@ -1,0 +1,120 @@
+### Promtail installation and configuration
+
+```bash
+echo "=== Installing Promtail ==="
+
+cd /tmp
+
+wget -O promtail-linux-amd64.zip \
+  https://github.com/grafana/loki/releases/latest/download/promtail-linux-amd64.zip
+
+unzip -o promtail-linux-amd64.zip
+
+sudo mv promtail-linux-amd64 /usr/local/bin/promtail
+
+sudo chmod +x /usr/local/bin/promtail
+
+sudo mkdir -p /etc/promtail
+sudo mkdir -p /var/lib/promtail
+
+sudo useradd --system \
+  --no-create-home \
+  --shell /bin/false \
+  promtail 2>/dev/null || true
+
+sudo chown -R promtail:promtail /var/lib/promtail
+```
+
+### Promtail configuration
+
+```bash
+sudo tee /etc/promtail/config.yaml > /dev/null <<'EOF'
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /var/lib/promtail/positions.yaml
+
+clients:
+  - url: http://localhost:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: systemd-journal
+
+    journal:
+      path: /var/log/journal
+      labels:
+        job: systemd
+        host: ${HOSTNAME}
+
+    relabel_configs:
+      - source_labels:
+          - __journal__systemd_unit
+        target_label: unit
+EOF
+
+sudo chown promtail:promtail /etc/promtail/config.yaml
+```
+
+### Give Promtail access to the journal
+
+```bash
+sudo usermod -aG systemd-journal promtail
+```
+
+Then create the systemd service:
+
+```bash
+sudo tee /etc/systemd/system/promtail.service > /dev/null <<'EOF'
+[Unit]
+Description=Promtail Log Collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=promtail
+Group=promtail
+
+ExecStart=/usr/local/bin/promtail \
+  -config.file=/etc/promtail/config.yaml
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+Start Promtail:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now promtail
+```
+
+Check:
+
+```bash
+sudo systemctl status promtail
+```
+
+View Promtail logs:
+
+```bash
+sudo journalctl -u promtail -f
+```
+
+Check Promtail's HTTP endpoint:
+
+```bash
+curl http://localhost:9080/ready
+```
+
+Then check Loki:
+
+```bash
+curl http://localhost:3100/ready
+```
