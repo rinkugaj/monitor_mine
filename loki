@@ -1,0 +1,114 @@
+================
+Install Loki
+================
+
+echo "Installing Loki"
+cd /tmp
+wget https://github.com/grafana/loki/releases/download/v3.7.0/loki-linux-amd64.zip
+
+unzip loki-linux-amd64.zip
+sudo mv loki-linux-amd64 /usr/local/bin/loki
+sudo chmod +x /usr/local/bin/loki
+
+sudo mkdir -p /etc/loki /var/lib/loki/index /var/lib/loki/chunks /var/lib/loki/wal
+sudo useradd --system --no-create-home --shell /bin/false loki || true
+sudo chown -R loki:loki /var/lib/loki
+
+=============================================
+### 1. Create Loki configuration
+=============================================
+
+```bash
+sudo tee /etc/loki-config.yaml > /dev/null <<'EOF'
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /var/lib/loki
+  replication_factor: 1
+
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2025-09-23
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /var/lib/loki/index
+    cache_location: /var/lib/loki/index_cache
+
+  filesystem:
+    directory: /var/lib/loki/chunks
+
+ingester:
+  chunk_idle_period: 5m
+  max_chunk_age: 1h
+
+  wal:
+    enabled: true
+    dir: /var/lib/loki/wal
+
+limits_config:
+  allow_structured_metadata: false
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+EOF
+```
+
+### 2. Create Loki directories
+
+```bash
+sudo mkdir -p \
+  /var/lib/loki/index \
+  /var/lib/loki/index_cache \
+  /var/lib/loki/chunks \
+  /var/lib/loki/wal
+
+sudo chown -R loki:loki /var/lib/loki
+sudo chown loki:loki /etc/loki-config.yaml
+```
+
+### 3. Create the systemd service
+
+```bash
+sudo tee /etc/systemd/system/loki.service > /dev/null <<'EOF'
+[Unit]
+Description=Loki Log Aggregation System
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/loki -config.file=/etc/loki-config.yaml
+Restart=always
+RestartSec=5
+User=loki
+Group=loki
+WorkingDirectory=/var/lib/loki
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+### 4. Start Loki
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable loki
+sudo systemctl start loki
+```
+==============================
