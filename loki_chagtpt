@@ -1,0 +1,162 @@
+# ==================================================
+# 8. Install Loki
+# ==================================================
+
+echo "=== Installing Loki ==="
+
+sudo useradd \
+  --system \
+  --no-create-home \
+  --shell /bin/false \
+  loki 2>/dev/null || true
+
+cd /tmp
+
+wget -O loki-linux-amd64.zip \
+  https://github.com/grafana/loki/releases/download/v3.7.0/loki-linux-amd64.zip
+
+unzip -o loki-linux-amd64.zip
+
+sudo mv loki-linux-amd64 /usr/local/bin/loki
+
+sudo chmod +x /usr/local/bin/loki
+
+# Loki directories
+
+sudo mkdir -p \
+  /etc/loki \
+  /var/lib/loki/index \
+  /var/lib/loki/index_cache \
+  /var/lib/loki/chunks \
+  /var/lib/loki/wal
+
+sudo chown -R loki:loki /var/lib/loki
+
+
+# ==================================================
+# Loki configuration
+# ==================================================
+
+echo "=== Creating Loki configuration ==="
+
+sudo tee /etc/loki/config.yaml > /dev/null <<'EOF'
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /var/lib/loki
+  replication_factor: 1
+
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2025-09-23
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /var/lib/loki/index
+    cache_location: /var/lib/loki/index_cache
+
+  filesystem:
+    directory: /var/lib/loki/chunks
+
+ingester:
+  chunk_idle_period: 5m
+  max_chunk_age: 1h
+
+  wal:
+    enabled: true
+    dir: /var/lib/loki/wal
+
+limits_config:
+  allow_structured_metadata: false
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+EOF
+
+sudo chown loki:loki /etc/loki/config.yaml
+
+
+# ==================================================
+# Loki systemd service
+# ==================================================
+
+echo "=== Creating Loki service ==="
+
+sudo tee /etc/systemd/system/loki.service > /dev/null <<'EOF'
+[Unit]
+Description=Loki Log Aggregation System
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+
+User=loki
+Group=loki
+
+WorkingDirectory=/var/lib/loki
+
+ExecStart=/usr/local/bin/loki \
+  -config.file=/etc/loki/config.yaml
+
+Restart=always
+RestartSec=5
+
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+
+# ==================================================
+# Validate Loki
+# ==================================================
+
+echo "=== Validating Loki configuration ==="
+
+sudo -u loki /usr/local/bin/loki \
+  -config.file=/etc/loki/config.yaml \
+  -verify-config=true
+
+
+# ==================================================
+# Start Loki
+# ==================================================
+
+sudo systemctl daemon-reload
+
+sudo systemctl enable --now loki
+
+
+# ==================================================
+# Loki status
+# ==================================================
+
+echo "=== Loki status ==="
+
+sudo systemctl --no-pager --full status loki
+
+sleep 3
+
+echo "=== Loki health check ==="
+
+curl -f http://127.0.0.1:3100/ready
+
+echo
+echo "Loki installation completed"
