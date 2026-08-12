@@ -18,7 +18,7 @@ sudo chown -R loki:loki /var/lib/loki
 ### 1. Create Loki configuration
 =============================================
 
-```bash
+
 sudo tee /etc/loki-config.yaml > /dev/null <<'EOF'
 auth_enabled: false
 
@@ -70,7 +70,7 @@ EOF
 
 ### 2. Create Loki directories
 
-```bash
+
 sudo mkdir -p \
   /var/lib/loki/index \
   /var/lib/loki/index_cache \
@@ -79,11 +79,11 @@ sudo mkdir -p \
 
 sudo chown -R loki:loki /var/lib/loki
 sudo chown loki:loki /etc/loki-config.yaml
-```
+
 
 ### 3. Create the systemd service
 
-```bash
+
 sudo tee /etc/systemd/system/loki.service > /dev/null <<'EOF'
 [Unit]
 Description=Loki Log Aggregation System
@@ -102,13 +102,13 @@ WorkingDirectory=/var/lib/loki
 [Install]
 WantedBy=multi-user.target
 EOF
-```
+
 
 ### 4. Start Loki
 
-```bash
+
 sudo systemctl daemon-reload
 sudo systemctl enable loki
 sudo systemctl start loki
-```
+
 ==============================
