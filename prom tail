@@ -118,3 +118,7 @@ Then check Loki:
 ```bash
 curl http://localhost:3100/ready
 ```
+========================================================
+wget https://github.com/grafana/loki/releases/download/v2.8.2/promtail-linux-amd64.zip
+
+wget https://raw.githubusercontent.com/grafana/loki/v2.9.4/clients/cmd/promtail/promtail-local-config.yaml 
